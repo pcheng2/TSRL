@@ -108,12 +108,12 @@ class ReplayBuffer(object):
         )
 
     def sample_lambda(self, batch_size):
-        ind = np.random.randint(0, self.size, size=batch_size)  ###################################
+        ind = np.random.randint(0, self.size, size=batch_size) 
 
         return (
             torch.FloatTensor(self.state[ind]).to(self.device),
             torch.FloatTensor(self.action[ind]).to(self.device),
-            torch.FloatTensor(self.next_state[ind]).to(self.device),  ####################################
+            torch.FloatTensor(self.next_state[ind]).to(self.device), 
             torch.FloatTensor(self.next_action[ind]).to(self.device),
             torch.FloatTensor(self.reward[ind]).to(self.device),
             torch.FloatTensor(self.not_done[ind]).to(self.device)
@@ -185,7 +185,6 @@ class ReplayBuffer(object):
             dataset['rewards'] = dataset['rewards'][:-1]
             dataset['terminals'] = np.squeeze(dataset['terminals'])
             dataset['rewards'] = np.squeeze(dataset['rewards'])
-
             nonterminal_steps, = np.where(
                 np.logical_and(
                     np.logical_not(dataset['terminals']),
@@ -206,7 +205,6 @@ class ReplayBuffer(object):
             self.not_done = 1. - dataset['terminals'][nonterminal_steps].reshape(-1, 1)
             self.size = self.state.shape[0]
         else:
-            
             dataset_size = len(dataset['observations']) + 1
             print('dataset_size',dataset_size)
             dataset['terminals'] = np.squeeze(dataset['terminals'])

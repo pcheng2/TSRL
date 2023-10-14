@@ -18,7 +18,6 @@ def train_network(training_data, val_data, params):
     z_act_dim = latent_out - z_stat_dim
     # assert(latent_out == act_dim + z_stat_dim)
     learning_rate = params['learning_rate']
-    wd_rate = params['wd_rate']
     l1_lambda = params['l1_rate']
     total_epochs = params['max_epochs']
     
@@ -26,39 +25,27 @@ def train_network(training_data, val_data, params):
     fwd_network = ForwardNet(z_stat_dim, z_act_dim, device=params['device'], seed=params['seed']).to(params['device'])
     bwd_network = BackwardNet(z_stat_dim, z_act_dim, device=params['device'], seed=params['seed']).to(params['device'])
     dynamic_network = Full_network(ae_network, fwd_network, bwd_network, params)
-
-    # optimizer = optim.Adam([{"params":dynamic_network.ae_network.parameters()},
-    #                         {"params":dynamic_network.fwd_network.parameters()}, 
-    #                         {"params":dynamic_network.bwd_network.parameters()}], 
-    #                         lr=learning_rate)
     
     optimizer = optim.Adam([{"params":dynamic_network.ae_network.parameters()},
                             {"params":dynamic_network.fwd_network.parameters()}, 
                             {"params":dynamic_network.bwd_network.parameters()}], 
-                            lr=learning_rate, weight_decay= wd_rate)
-    
-    # lr_scheduler = LambdaLR(optimizer, lr_lambda=lambda total_epochs: 1/(total_epochs+1))
-
+                            lr=learning_rate)
     validation_dict = create_feed_dictionary(val_data, params, idxs=None)
 
     print('--------------------START TRAINING-------------------------------')
-    # train_dict= {}
     
     for epoch in range(total_epochs):
         rand_idx = torch.LongTensor(np.random.permutation(params['train_size'] -1)) # for adroit need -1 ; total_states; train_size
-        # print('rand_idx', rand_idx)
         for j in range(params['batch_num']):
-            # dynamic_network.ae_network.train()
             optimizer.zero_grad()
             batch_idxs = rand_idx[j*params['batch_size']:(j+1)*params['batch_size']]
-            # print('batch_idxs', batch_idxs)
             train_dict = create_feed_dictionary(training_data, params, idxs=batch_idxs)
             results_dic = dynamic_network.dynamic_pred(train_dict)
             train_total_loss, losses  = define_loss(train_dict, results_dic, params, epoch, validation=False)
-            # l1_norm_fwd = sum(p.abs().sum() for p in dynamic_network.fwd_network.parameters())
-            # l1_norm_bwd = sum(p.abs().sum() for p in dynamic_network.bwd_network.parameters())
-            # reg_loss = l1_lambda * (l1_norm_fwd + l1_norm_bwd)
-            # train_total_loss += reg_loss
+            l1_norm_fwd = sum(p.abs().sum() for p in dynamic_network.fwd_network.parameters())
+            l1_norm_bwd = sum(p.abs().sum() for p in dynamic_network.bwd_network.parameters())
+            reg_loss = l1_lambda * (l1_norm_fwd + l1_norm_bwd)
+            train_total_loss += reg_loss
             train_total_loss.backward()
             optimizer.step()
 
@@ -99,29 +86,10 @@ def train_network(training_data, val_data, params):
     pickle.dump(bwd_network, open(OUT_DIR + 'Dyna_bwd_params.pkl', 'wb'))
     
 def create_feed_dictionary(data, params, idxs=None):
-    """
-    Create the feed dictionary for passing into tensorflow.
-
-    Arguments:
-        data - Dictionary object containing the data to be passed in. Must contain input data x,
-        along the first (and possibly second) order time derivatives dx (ddx).
-        params - Dictionary object containing model and training parameters. The relevant
-        parameters are model_order (which determines whether the SINDy model predicts first or
-        second order time derivatives), sequential_thresholding (which indicates whether or not
-        coefficient thresholding is performed), coefficient_mask (optional if sequential
-        thresholding is performed; 0/1 mask that selects the relevant coefficients in the SINDy
-        model), and learning rate (float that determines the learning rate).
-        idxs - Optional array of indices that selects which examples from the dataset are passed
-        in to tensorflow. If None, all examples are used.
-
-    Returns:
-        feed_dict - Dictionary object containing the relevant data to pass to tensorflow.
-    """
 
     if idxs is None:
         idxs = np.arange(data['s'].shape[0])
     feed_dict =  {}
-
     feed_dict['s'] = torch.from_numpy(data['s'][idxs]).float().to(params['device'])
     feed_dict['act'] = torch.from_numpy(data['act'][idxs]).float().to(params['device'])
     feed_dict['sp'] = torch.from_numpy(data['sp'][idxs]).float().to(params['device'])
@@ -139,16 +107,11 @@ def create_feed_dictionary(data, params, idxs=None):
 def define_loss(data_dic, results_dic, params, epoch, validation=False):
         """
         Create the loss functions.
-
-        Arguments:
-            network_dic - Dictionary object containing the elements of the network_dic architecture.
-            This will be the output of the full_network() function.
         """
         losses =  {}
         if validation:
             with torch.no_grad():
                 losses['state_decode'] = torch.mean(torch.sum((data_dic['s'] - results_dic['state_decode'])**2, -1))
-                # losses['re_state_decode'] = torch.mean(torch.sum((s - results_dic['reverse_s_decoded'])**2, -1))
                 losses['act_decode'] = torch.mean(torch.sum((data_dic['act'] - results_dic['act_decode'])**2, -1))
                 losses['total_decode_loss'] = losses['act_decode'] + losses['state_decode']
                 losses['dnyamic_dz_s'] = torch.mean(torch.sum((results_dic['dz_s'] - results_dic['fwd_dyna_predict'])**2, -1))
@@ -163,14 +126,13 @@ def define_loss(data_dic, results_dic, params, epoch, validation=False):
             with torch.set_grad_enabled(True):
                 losses['state_decode'] = torch.mean(torch.sum((data_dic['s'] - results_dic['state_decode'])**2, -1))
                 losses['act_decode'] = torch.mean(torch.sum((data_dic['act'] - results_dic['act_decode'])**2, -1))
-                # print(torch.sum((dz - sindy_predict)**2, -1))
                 losses['dnyamic_dz_s'] = torch.mean(torch.sum((results_dic['dz_s'] - results_dic['fwd_dyna_predict'])**2, -1))
                 losses['dnyamic_dz_s_decoded'] = torch.mean(torch.sum((data_dic['ds'] - results_dic['dz_s_decode'])**2, -1)) #dx_decode was derived from sindy model
                 losses['dnyamic_dz_sp'] = torch.mean(torch.sum((results_dic['dz_sp'] - results_dic['bwd_dyna_predict'])**2, -1))
                 losses['dnyamic_dz_sp_decoded'] = torch.mean(torch.sum((data_dic['dsp'] - results_dic['dz_sp_decode'])**2, -1))
                 losses['dyna_consist'] = torch.mean(torch.sum((results_dic['dyna_consist'])**2, -1))
                 losses['model_consist'] = torch.mean(torch.sum((results_dic['consist'])**2, -1))
-                if epoch >= params['pre_train_epoch']: # 10k:50; 100k:25 ;1M:10; human, cheetah_10k:1 (500)
+                if epoch >= params['pre_train_epoch']:
                     loss = params['loss_weight_state_decoder'] * (losses['state_decode']) \
                     + params['loss_weight_act_decoder'] * (losses['act_decode'])\
                     + params['loss_weight_dynamic_z_s'] * (losses['dnyamic_dz_s'] + losses['dnyamic_dz_sp'])  \

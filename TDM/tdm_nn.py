@@ -1,9 +1,7 @@
 import numpy as np
 import torch
 import torch.nn as nn
-import functorch
 
-# import tensorflow as tf
 class Full_network:
     def __init__(self, 
                 ae_network,
@@ -54,23 +52,11 @@ class Full_network:
         pred_results['dz_sp_decode'] = dz_sp_decode
         pred_results['consist'] = pred_zs - z_s
         pred_results['dyna_consist'] = fwd_dyna_predict + bwd_dyna_predict
+        
         return pred_results
 
 
     def process_autoencoder(self, network, dic):
-        """
-        Construct a nonlinear autoencoder.
-
-        Arguments:
-
-        Returns:
-            z -
-            x_decode -
-            encoder_weights - List of tensorflow arrays containing the encoder weights
-            encoder_biases - List of tensorflow arrays containing the encoder biases
-            decoder_weights - List of tensorflow arrays containing the decoder weights
-            decoder_biases - List of tensorflow arrays containing the decoder biases
-        """
         x = dic['x']
         xp = dic['xp']
         if type(x) == np.ndarray:
@@ -82,17 +68,17 @@ class Full_network:
         return z, zp, s_decoded, a_decoded
     
     def dz_s(self, x, ds, func):
-        jeco_matrix = functorch.vmap(functorch.jacrev(func))(x)
-        partial_s = jeco_matrix[:,:,:self.state_dim] # B x Z_DIM x S_DIM
-        ds = torch.unsqueeze(ds, -1) # B x S_DIM x 1
-        dz_s = torch.squeeze(torch.bmm(partial_s, ds))[:,:self.latent_s_dim] # B x Z_DIM
+        jeco_matrix = torch.vmap(torch.func.jacrev(func))(x)
+        partial_s = jeco_matrix[:,:,:self.state_dim]
+        ds = torch.unsqueeze(ds, -1) 
+        dz_s = torch.squeeze(torch.bmm(partial_s, ds))[:,:self.latent_s_dim] 
         return dz_s
 
     def decode_dz_s(self, z_s, dz_s, func):
-        jeco_matrix = functorch.vmap(functorch.jacrev(func))(z_s)
-        partial_s = jeco_matrix[:,:,:self.latent_s_dim] # B x S_DIM x Z_DIM
-        dz_s = torch.unsqueeze(dz_s, -1) # B x Z_DIM x 1
-        ds = torch.squeeze(torch.bmm(partial_s, dz_s)) # B x S_DIM
+        jeco_matrix = torch.vmap(torch.func.jacrev(func))(z_s)
+        partial_s = jeco_matrix[:,:,:self.latent_s_dim]
+        dz_s = torch.unsqueeze(dz_s, -1)
+        ds = torch.squeeze(torch.bmm(partial_s, dz_s)) 
         return ds
     
 class ForwardNet(nn.Module):
@@ -109,8 +95,6 @@ class ForwardNet(nn.Module):
         self.input_dim = state_dim + act_dim
         self.fc_layers = nn.Sequential(
             torch.nn.Linear(self.input_dim, 512),
-            torch.nn.ReLU(),
-            torch.nn.Linear(512, 512),
             torch.nn.ReLU(),
             torch.nn.Linear(512, 512),
             torch.nn.ReLU(),
@@ -142,15 +126,10 @@ class BackwardNet(nn.Module):
         
         self.fc_layers = nn.Sequential(
             torch.nn.Linear(self.input_dim, 512),
-            # torch.nn.Dropout(p=0.5),
-            torch.nn.ReLU(),
-            torch.nn.Linear(512, 512),
-            # torch.nn.Dropout(p=0.5),
             torch.nn.ReLU(),
             torch.nn.Linear(512, 512),
             torch.nn.ReLU(),
             torch.nn.Linear(512, 512),
-            # torch.nn.Dropout(p=0.5),
             torch.nn.ReLU(),
             torch.nn.Linear(512, self.state_dim)
         )
@@ -183,33 +162,26 @@ class AutoEncoder(torch.nn.Module):
             torch.nn.Linear(input_dim, 512),
             torch.nn.ReLU(),
             torch.nn.Linear(512, 256),
-            # torch.nn.Dropout(p=0.5),
             torch.nn.ReLU(),
             torch.nn.Linear(256, 128),
-            # torch.nn.Dropout(p=0.5),
             torch.nn.ReLU(),
             torch.nn.Linear(128, out_dim)
         )
  
         self.s_decoder = nn.Sequential(
             torch.nn.Linear(z_stat_dim, 128),
-            # torch.nn.Dropout(p=0.5),
             torch.nn.ReLU(),
             torch.nn.Linear(128, 256),
-            # torch.nn.Dropout(p=0.5),
             torch.nn.ReLU(),
             torch.nn.Linear(256, 512),
-            # torch.nn.Dropout(p=0.5),
             torch.nn.ReLU(),
             torch.nn.Linear(512, state_dim)
         )
         
         self.a_decoder = nn.Sequential(
             torch.nn.Linear(z_act_dim, 128),
-            # torch.nn.Dropout(p=0.5),
             torch.nn.ReLU(),
             torch.nn.Linear(128, 256),
-            # torch.nn.Dropout(p=0.5),
             torch.nn.ReLU(),
             torch.nn.Linear(256, 512),
             torch.nn.ReLU(),

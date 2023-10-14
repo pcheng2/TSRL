@@ -1,2 +1,9 @@
 *.pkl
-
+utils/small_samples/
+TDM/tdm_models/
+TDM/logs/
+TDM/__pycache__/
+TDM/wandb/
+wandb/
+logs/
+__pycache__/

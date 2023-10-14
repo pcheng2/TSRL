@@ -10,10 +10,10 @@ import os
 import numpy as np
 import d4rl
 from torch.distributions import Normal
-from Prepare_env import prepare_env
 from actor_critic_net import Actor_deterministic, Double_Critic
 from sample_from_dataset import ReplayBuffer
 import pickle
+import datetime
 
 class TSRL:
     def __init__(self,
@@ -34,24 +34,19 @@ class TSRL:
                  inconsis_weight = 0,
                  batch_size=256,
                  Drop_prob=0.5,
-                 eval_iter=5,
-                 low_speed=False,
+                 eval_iter=1,
                  store_prams=False,
                  augment=False,
                  device='cpu'):
         """
-        Facebear's implementation of TD3_BC (A Minimalist Approach to Offline Reinforcement Learning)
-        Paper: https://arxiv.org/pdf/2106.06860.pdf
-        :param env_name: your gym environment name
-        :param num_hidden: the number of the units of the hidden layer of your network
-        :param gamma: discounting factor of the cumulated reward
-        :param tau: soft update
-        :param policy_noise:
-        :param noise_clip:
-        :param policy_freq: delayed policy update frequency
-        :param alpha: the hyper-parameter in equation
-        :param ratio:
-        :param device:
+        Paper: 
+        env_name: your gym environment name
+        gamma: discounting factor of the cumulated reward
+        policy_freq: delayed policy update frequency
+        alpha: the hyper-parameter in equation
+        z_act_weight: weight of latent actions in policy contraints term
+        inconsis_weight: weight of T-sym inconsistency in policy contraints term
+        quantile: data augmentation threshold
         """
         super(TSRL, self).__init__()
         # prepare the environment
@@ -62,15 +57,14 @@ class TSRL:
         
         self.augment = augment
         self.quantile = quantile
-        self.low_speed = low_speed
         
         self.z_act_weight = z_act_weight
         self.inconsis_weight = inconsis_weight
         self.store_prams = store_prams
         
-        path_dynamic_ae_network = 'TDM/tdm_models/Env_{}-ratio_{}/AE_params.pkl'.format(env_name, ratio)
-        path_bwd_dynamic = 'TDM/tdm_models/Env_{}-ratio_{}/Dyna_bwd_params.pkl'.format(env_name, ratio)
-        path_fwd_dynamic = 'TDM/tdm_models/Env_{}-ratio_{}/Dyna_fwd_params.pkl'.format(env_name, ratio)
+        path_dynamic_ae_network = 'TDM/tdm_models/tdm-Env_{}-ratio_{}/AE_params.pkl'.format(env_name, ratio)
+        path_bwd_dynamic = 'TDM/tdm_models/tdm-Env_{}-ratio_{}/Dyna_bwd_params.pkl'.format(env_name, ratio)
+        path_fwd_dynamic = 'TDM/tdm_models/tdm-Env_{}-ratio_{}/Dyna_fwd_params.pkl'.format(env_name, ratio)
         self.device = device
         
         # hyper-parameters
@@ -108,11 +102,10 @@ class TSRL:
                                         device=self.device)
         
         if ratio != 1:
-            partial_path = 'small_samples/{}-ratio-{}-seed-111.npy'.format(self.env_name,int(ratio))
+            partial_path = 'utils/small_samples/{}-ratio-{}.npy'.format(env_name,int(ratio))
             self.dataset = np.load(partial_path, allow_pickle=True)[0]
         else:
             dataset = self.env.get_dataset()
-            # dataset = np.load('/root/sindy/SINDy_RL/low_speed_data/walker2d-medium-v2-low_speed.npy', allow_pickle=True)[0]
             self.dataset = self.replay_buffer.split_dataset(self.env, dataset, ratio=ratio)
             
         self.s_mean, self.s_std, self.norm_std, self.thresh, self.consis_max, self.consis_min, self.consis_mean, self.z_mean, self.z_std, self.z_s_mean, self.z_s_std, self.z_a_std = self.replay_buffer.convert_D4RL(self.dataset, ratio, scale_rewards=False, scale_state=True)
@@ -128,15 +121,12 @@ class TSRL:
         self.critic_net = Double_Critic(self.latent_state_dim, self.latent_action_dim, num_hidden, self.Drop_prob, device).float().to(device)
         self.critic_target = copy.deepcopy(self.critic_net)
         self.critic_optim = torch.optim.Adam(self.critic_net.parameters(), lr=3e-4)
-
-        # Q and Critic file location
-        if self.store_prams:
-            self.file_loc = prepare_env(self.alpha, env_name, self.z_act_weight, self.inconsis_weight, ratio)
-    
+        
+        self.current_time = datetime.datetime.now()
+        logdir_name = f"./Model/{self.env_name}/{self.current_time}+{self.seed}"
+        os.makedirs(logdir_name)
+        
     def tsrl_learn(self, total_time_step=1e+5):
-        records = {}
-        records['states'] = []
-        records['qpos'] = []
         while self.total_it <= total_time_step:
             self.total_it += 1
             # sample data
@@ -151,14 +141,14 @@ class TSRL:
 
             # delayed policy update
             if self.total_it % self.policy_freq == 0:
-                actor_loss, latent_bc_loss, inconsis_loss, aug_consist_loss, Q_pi_mean = self.train_actor(state, 
+                actor_loss, latent_act_loss, inconsis_loss, aug_consist_loss, Q_pi_mean = self.train_actor(state, 
                                                                                                           next_state, 
                                                                                                           current_z_action, 
                                                                                                           next_z_state)
                 if self.total_it % self.evaluate_freq == 0:
                     evaluate_reward = self.rollout_evaluate()
                     wandb.log({"actor_loss": actor_loss,
-                               "latent_bc_loss": latent_bc_loss,
+                               "latent_act_loss": latent_act_loss,
                                "inconsis_loss":inconsis_loss,
                                "Q_pi_loss": critic_loss_pi,
                                "Q_pi_mean": Q_pi_mean,
@@ -169,9 +159,8 @@ class TSRL:
                                "it_steps": self.total_it
                                })
                     
-            # if self.store_prams:
-            #     if self.total_it % 900000 == 0:
-            #         self.save_parameters()
+                    if self.store_prams:
+                            self.save_parameters(evaluate_reward)
 
     def train_Q_pi(self, 
                    action, 
@@ -205,9 +194,7 @@ class TSRL:
         action_pi = self.actor_net(state)
         next_action_pi = self.actor_net(next_state)
         pi_z, pi_z_s, pi_z_action= self.dyna_encoding(self.dynamic_ae_network, state, action_pi)
-        
-        # z, pi_next_z_obs, _= self.dyna_encoding(self.dynamic_ae_network, next_state, action_pi)
-        z, pi_next_z_obs, _= self.dyna_encoding(self.dynamic_ae_network, next_state, next_action_pi)
+        _, pi_next_z_obs, _= self.dyna_encoding(self.dynamic_ae_network, next_state, next_action_pi)
         
         pi_delta_z_s = self.fwd_dynamic(pi_z)
         pred_next_z_s = pi_z_s + pi_delta_z_s
@@ -216,20 +203,17 @@ class TSRL:
         pred_z_s = pi_delta_sp + pi_next_z_obs
 
         inconsis_loss = nn.MSELoss()(pi_z_s, pred_z_s)
-        latent_bc_loss = nn.MSELoss()(pi_z_action, current_z_action)
+        latent_act_loss = nn.MSELoss()(pi_z_action, current_z_action)
         
         if self.augment:
             self.epsilon = Normal(self.z_s_mean, self.norm_std).sample().detach()
             aug_z_state = pi_z_s + self.epsilon
             aug_next_z_state = next_z_s + self.epsilon
-            
             aug_z = torch.cat((aug_z_state, pi_z_action), -1)
             pred_aug_delta_z_s = self.fwd_dynamic(aug_z)
             epsilon_z_s = pred_aug_delta_z_s - pi_delta_z_s
-            
             pred_aug_z_next_state = aug_next_z_state + epsilon_z_s 
             aug_zp = torch.cat((pred_aug_z_next_state, pi_z_action), -1)
-            
             pred_aug_delta_zp = self.bwd_dynamic(aug_zp)
             pred_aug_z_state = pred_aug_delta_zp + aug_next_z_state
             aug_consist_loss = nn.MSELoss()(aug_z_state, pred_aug_z_state).detach()
@@ -238,15 +222,11 @@ class TSRL:
                 self.actor_aug_count += 1
                 pi_z_s = torch.cat((pi_z_s, aug_z_state), 0)
                 pi_z_action = torch.cat((pi_z_action, pi_z_action), 0)
-        
-        # if self.norm:
-        #     pi_z_s = (pi_z_s - self.z_s_mean) / (self.z_s_std + 1e-5)
-        
+                
         Q1, Q2 = self.critic_net(pi_z_s, pi_z_action)
         Q_pi = torch.min(Q1, Q2)
-        # Q_pi = self.critic_net.Q1(pi_z_s, pi_z_action)
         lmbda = self.alpha / Q_pi.abs().mean().detach()
-        actor_loss = -lmbda * Q_pi.mean() + self.z_act_weight * latent_bc_loss + self.inconsis_weight * inconsis_loss
+        actor_loss = -lmbda * Q_pi.mean() + self.z_act_weight * latent_act_loss + self.inconsis_weight * inconsis_loss
         
         # Optimize Actor
         self.actor_optim.zero_grad()
@@ -261,7 +241,7 @@ class TSRL:
             target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
 
         return actor_loss.cpu().detach().numpy().item(), \
-               latent_bc_loss.cpu().detach().numpy().item(), \
+               latent_act_loss.cpu().detach().numpy().item(), \
                inconsis_loss.cpu().detach().numpy().item(), \
                aug_consist_loss.cpu().detach().numpy().item(), \
                Q_pi.mean().cpu().detach().numpy().item()
@@ -279,10 +259,7 @@ class TSRL:
             while True:
                 state = (state - self.s_mean) / (self.s_std + 1e-5)
                 action = self.actor_net(state).cpu().detach().numpy()
-                # print(action)
                 state, reward, done, _ = self.env.step(action[0])
-                # states.append(state)
-                # qps.append(self.env.data.qpos[0])
                 scores += reward
                 if done:
                     break
@@ -291,13 +268,13 @@ class TSRL:
         ep_rewards_mean = np.mean(ep_rews)
         return ep_rewards_mean
     
-    def save_parameters(self):
-        torch.save(self.critic_net.state_dict(), self.file_loc[2])
-        torch.save(self.actor_net.state_dict(), self.file_loc[3])
-
-    def load_parameters(self):
-        self.critic_net.load_state_dict(torch.load(self.file_loc[2]))
-        self.actor_net.load_state_dict(torch.load(self.file_loc[3]))
+    def save_parameters(self, reward):
+        logdir_name = f"./Model/{self.env_name}/{self.current_time}+{self.seed}/{self.total_it}+{reward}"
+        os.makedirs(logdir_name)
+        q_logdir_name = f"./Model/{self.env_name}/{self.current_time}+{self.seed}/{self.total_it}+{reward}/q.pth"
+        a_logdir_name = f"./Model/{self.env_name}/{self.current_time}+{self.seed}/{self.total_it}+{reward}/actor.pth"
+        torch.save(self.critic_net.state_dict(), q_logdir_name)
+        torch.save(self.actor_net.state_dict(), a_logdir_name)
         
     def dyna_encoding(self,network,state,action):
         z_input = torch.cat((state,action),1)
