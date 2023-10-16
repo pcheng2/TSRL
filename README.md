@@ -32,7 +32,7 @@ and
 ```
 
 #### 3.Run TSRL on Benchmark experiments
-After you have your own small samples as well as a trained TDM model, you can start run TSRL on D4RL tasks by:
+After you have your own small samples as well as a trained TDM model, you can run TSRL on D4RL tasks by:
 
 ```python
     bash tsrl_loco.sh # For the locomotion tasks 
