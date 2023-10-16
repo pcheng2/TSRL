@@ -35,7 +35,7 @@ def train_network(training_data, val_data, params):
     print('--------------------START TRAINING-------------------------------')
     
     for epoch in range(total_epochs):
-        rand_idx = torch.LongTensor(np.random.permutation(params['train_size'] -1)) # for adroit need -1 ; total_states; train_size
+        rand_idx = torch.LongTensor(np.random.permutation(params['train_size'] -1))
         for j in range(params['batch_num']):
             optimizer.zero_grad()
             batch_idxs = rand_idx[j*params['batch_size']:(j+1)*params['batch_size']]
@@ -115,7 +115,7 @@ def define_loss(data_dic, results_dic, params, epoch, validation=False):
                 losses['act_decode'] = torch.mean(torch.sum((data_dic['act'] - results_dic['act_decode'])**2, -1))
                 losses['total_decode_loss'] = losses['act_decode'] + losses['state_decode']
                 losses['dnyamic_dz_s'] = torch.mean(torch.sum((results_dic['dz_s'] - results_dic['fwd_dyna_predict'])**2, -1))
-                losses['dnyamic_dz_s_decoded'] = torch.mean(torch.sum((data_dic['ds'] - results_dic['dz_s_decode'])**2, -1)) #dx_decode was derived from sindy model
+                losses['dnyamic_dz_s_decoded'] = torch.mean(torch.sum((data_dic['ds'] - results_dic['dz_s_decode'])**2, -1))
                 losses['dnyamic_dz_sp'] = torch.mean(torch.sum((results_dic['dz_sp'] - results_dic['bwd_dyna_predict'])**2, -1))
                 losses['dnyamic_dz_sp_decoded'] = torch.mean(torch.sum((data_dic['dsp'] - results_dic['dz_sp_decode'])**2, -1))
                 losses['dyna_consist'] = torch.mean(torch.sum((results_dic['dyna_consist'])**2, -1))
@@ -127,7 +127,7 @@ def define_loss(data_dic, results_dic, params, epoch, validation=False):
                 losses['state_decode'] = torch.mean(torch.sum((data_dic['s'] - results_dic['state_decode'])**2, -1))
                 losses['act_decode'] = torch.mean(torch.sum((data_dic['act'] - results_dic['act_decode'])**2, -1))
                 losses['dnyamic_dz_s'] = torch.mean(torch.sum((results_dic['dz_s'] - results_dic['fwd_dyna_predict'])**2, -1))
-                losses['dnyamic_dz_s_decoded'] = torch.mean(torch.sum((data_dic['ds'] - results_dic['dz_s_decode'])**2, -1)) #dx_decode was derived from sindy model
+                losses['dnyamic_dz_s_decoded'] = torch.mean(torch.sum((data_dic['ds'] - results_dic['dz_s_decode'])**2, -1))
                 losses['dnyamic_dz_sp'] = torch.mean(torch.sum((results_dic['dz_sp'] - results_dic['bwd_dyna_predict'])**2, -1))
                 losses['dnyamic_dz_sp_decoded'] = torch.mean(torch.sum((data_dic['dsp'] - results_dic['dz_sp_decode'])**2, -1))
                 losses['dyna_consist'] = torch.mean(torch.sum((results_dic['dyna_consist'])**2, -1))
