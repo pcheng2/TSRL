@@ -7,30 +7,35 @@ To install the dependencies, use
 ```
 
 #### 1.Create small samples
-Before trainig, you should set up a small sample dataset by yourself:
-```python
-    python utils/generate_samples.py 
-```
+Before start trainig, you should create small samples by yourself:
 
+```python
+    bash utils/generate_loco.sh # For the locomotion tasks
+```
+and
+```python
+    bash utils/generate_adroit.sh # For the adroit tasks
+```
 #### 2.Train TDM models
-Before running TSRL, you should set up a small sample dataset by:
+You can train TDM simply from:
+
 ```python
-    python utils/generate_samples.py 
+    bash TDM/train_loco.sh # For the locomotion tasks 
+```
+and
+```python
+    bash TDM/train_adroit.sh #  For the adroit tasks
 ```
 
-#### 3.Benchmark experiments
-You can run Mujoco tasks and AntMaze tasks like so:
-```python
-    python train_distance_mujoco.py --env_name halfcheetah-medium-v2 --alpha 7.5
-```
-```python
-    python train_distance_antmaze.py --env_name antmaze-umaze-v2 --alpha 5.0
-```
-#### Modified AntMaze tasks
+#### 3.Run TSRL on Benchmark experiments
+After you have your own small samples as well as a trained TDM model, you can start run TSRL on D4RL tasks by:
 
-You can run the modified AntMaze medium/large tasks like so:
 ```python
-    python train_distance_antmaze.py --env_name antmaze-large-play-v2 --alpha 70 --toycase True
+    bash tsrl_loco.sh # For the locomotion tasks 
+```
+and
+```python
+    bash tsrl_adroit.sh # For the locomotion tasks 
 ```
 
 #### Visulization of Learning curves
