@@ -33,7 +33,7 @@ class TSRL:
                  z_act_weight = 0,
                  inconsis_weight = 0,
                  batch_size=256,
-                 Drop_prob=0.5,
+                 drop_prob=0.5,
                  eval_iter=1,
                  store_prams=False,
                  augment=False,
@@ -83,7 +83,7 @@ class TSRL:
         self.total_it = 0
         self.actor_aug_count = 0
         self.eval_iter = eval_iter
-        self.Drop_prob = Drop_prob
+        self.drop_prob = drop_prob
         self.seed = seed
         # set seed
         self.env.seed(seed)
@@ -114,11 +114,11 @@ class TSRL:
         self.bwd_dynamic = pickle.load(open(path_bwd_dynamic, 'rb'))
         
         # prepare the actor and critic
-        self.actor_net = Actor_deterministic(num_state, num_action, num_hidden, self.Drop_prob, device).float().to(device)
+        self.actor_net = Actor_deterministic(num_state, num_action, num_hidden, self.drop_prob, device).float().to(device)
         self.actor_target = copy.deepcopy(self.actor_net)
         self.actor_optim = torch.optim.Adam(self.actor_net.parameters(), lr=3e-4)
 
-        self.critic_net = Double_Critic(self.latent_state_dim, self.latent_action_dim, num_hidden, self.Drop_prob, device).float().to(device)
+        self.critic_net = Double_Critic(self.latent_state_dim, self.latent_action_dim, num_hidden, self.drop_prob, device).float().to(device)
         self.critic_target = copy.deepcopy(self.critic_net)
         self.critic_optim = torch.optim.Adam(self.critic_net.parameters(), lr=3e-4)
         
