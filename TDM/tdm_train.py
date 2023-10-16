@@ -96,8 +96,8 @@ def pre_processing(args):
     params['l1_rate'] = 1e-5
     
     params['pre_train_epoch'] = args.pre_train_epoch
-    params['activation'] = args.activation #activation function to be used in the network
-    params['max_epochs'] = args.epoch #how many epochs to run the training procedure for
+    params['activation'] = args.activation
+    params['max_epochs'] = args.epoch 
     params['data_path'] = 'tdm_models/tdm-Env_{}-ratio_{}/'.format(args.env_name, args.ratio)
     params['device'] = args.device
     params['seed'] = args.seed
@@ -105,29 +105,25 @@ def pre_processing(args):
     return params,training_data,validation_data
 
 def main():
-    wandb.init(project="TDM_Models", entity="pcheng")
+    wandb.init(project="TDM_Models", entity="")
     # Parameters
     parser = argparse.ArgumentParser(description='Train Hopper-v2 with dynamic')
     parser.add_argument('--device', default='cuda', help='cuda or cpu')
     parser.add_argument('--env_name', help='choose your mujoco env') #  hopper-medium-v2
-    parser.add_argument('--epoch', default=500, type=int, help='specific epoch times')
-    parser.add_argument('--ratio', default=1, type=float, help='specific train_size') # [0, 1]
-    parser.add_argument('--batch_size', default=512, type=int, help='specific batch_size')
+    parser.add_argument('--epoch', default=500, type=int, help='specific training epoch')
+    parser.add_argument('--ratio', default=1, type=float, help='specific data size') # [0, 1]
+    parser.add_argument('--batch_size', default=512, type=int, help='specific batch size')
     parser.add_argument('--activation', default='relu', help='specific activation function')
-    parser.add_argument('--pre_train_epoch', default=0, type=int, help='specific activation function')
-    parser.add_argument('--seed', default=123, type=int, help='specific activation function')
+    parser.add_argument('--pre_train_epoch', default=0, type=int, help='specific pre-training epoch')
+    parser.add_argument('--seed', default=123, type=int)
 
     args = parser.parse_args()
     params,training_data,validation_data = pre_processing(args)
     
-    wandb.run.name = f"TDM-env_{args.env_name}-ratio_{args.ratio}-BaiDu"
+    wandb.run.name = f"TDM-env_{args.env_name}-ratio_{args.ratio}"
     wandb.config.update(params)
     train_network(training_data, validation_data, params)
     print('--------------------------------finished--------------------------------')
 
 if __name__ == '__main__':
     main()
-
-# export WANDB_API_KEY=ea1eb211c31bd14320ec5da1ed751ff43eaed121
-
-# nohup python tdm_train.py --env_name halfcheetah-expert-v2 --ratio 100 --pre_train_epoch 1 --epoch 10  > logs/dynamic-halfcheetah-expert-v2-100.log 2>&1 &
