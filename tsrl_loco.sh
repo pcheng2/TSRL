@@ -3,7 +3,7 @@ for DATASET in 'medium' 'medium-replay' 'medium-expert' 'expert'; do
 for SEED in 111 222 333; do
 ENV_NAME=$ENV'-'$DATASET'-v2'
 W_INCONSIS=100
-W_Z_ACT=200
+W_Z_ACT=100
 QUANTILE=0.7
 RATIO=100
 if [[ "$ENV_NAME" =~ "hopper-medium-replay" ]]; then
@@ -24,9 +24,10 @@ fi
 
 if [[ "$ENV_NAME" =~ "walker2d" ]]; then
 QUANTILE=0.5
+W_Z_ACT=200
 fi
 
-echo $ENV_NAME $RATIO
+echo $ENV_NAME $RATIO $SEED
 
 python tsrl_train.py --env_name $ENV_NAME --ratio $RATIO --z_act_weight $W_Z_ACT --inconsis_weight $W_INCONSIS --quantile $QUANTILE --seed $SEED
 done
