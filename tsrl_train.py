@@ -8,9 +8,9 @@ from tsrl_algos import TSRL
 import datetime
 
 def main():
-  wandb.init(project="TSRL", entity="")
+  wandb.init(project="your project name", entity="your entity id")
   # Parameters
-  parser = argparse.ArgumentParser(description='Solve the Hopper-v2 with TD3_BC')
+  parser = argparse.ArgumentParser()
   parser.add_argument('--device', default='cuda', help='cuda or cpu')
   parser.add_argument('--env_name', default='hopper-medium-v2', help='choose your mujoco env')
   parser.add_argument('--ratio', default=1, type=float, help='choose the data ratio')
@@ -32,9 +32,9 @@ def main():
 
   # setup mujoco environment
   env_name = args.env_name
-  wandb.run.name = f"TSRL-Alpha_{args.alpha}-{env_name}-seed_{args.seed}-ratio_{args.ratio}"
+  wandb.run.name = f"TSRL-alpha_{args.alpha}-{env_name}-seed_{args.seed}-ratio_{args.ratio}"
 
-  agent_TD3_BC = TSRL(env_name,
+  agent_tsrl = TSRL(env_name,
           device=args.device,
           ratio=args.ratio,
           gamma=args.gamma,
@@ -49,7 +49,7 @@ def main():
           eval_iter=args.eval_iter,
           seed=args.seed,
           )
-  agent_TD3_BC.tsrl_learn(total_time_step=int(1e+6))
+  agent_tsrl.tsrl_learn(total_time_step=int(1e+6))
 
 
 if __name__ == '__main__':
