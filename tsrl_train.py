@@ -16,7 +16,7 @@ def main():
   parser.add_argument('--ratio', default=1, type=float, help='choose the data ratio')
   parser.add_argument('--alpha', default=2.5, type=float)
   parser.add_argument('--gamma', default=0.99, type=float)
-  parser.add_argument("--seed", default=111, type=int)  # Sets Gym, PyTorch and Numpy seeds
+  parser.add_argument("--seed", default=111, type=int)
   parser.add_argument("--num_hidden", default=512, type=int) 
   parser.add_argument('--lr_actor', default=3e-4, type=float)
   parser.add_argument('--lr_critic', default=3e-4, type=float)
