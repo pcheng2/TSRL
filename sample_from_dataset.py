@@ -14,110 +14,34 @@ class ReplayBuffer(object):
                  max_size=int(1e6), 
                  device='cuda'):
         self.max_size = max_size
-        self.ptr = 0
         self.size = 0
         self.state = np.zeros((max_size, state_dim))
         self.action = np.zeros((max_size, action_dim))
         self.next_state = np.zeros((max_size, state_dim))
         self.next_action = np.zeros((max_size, action_dim))
         self.reward = np.zeros((max_size, 1))
-        self.next_reward = np.zeros((max_size, 1))
-        self.nn_reward = np.zeros((max_size, 1))
         self.not_done = np.zeros((max_size, 1))
-
-        self.state_buffer = []
-        self.action_buffer = []
-        self.next_state_buffer = []
-        self.next_action_buffer = []
-        self.reward_buffer = []
-        self.done_buffer = []
-
-        
         self.dynamic_ae_network = pickle.load(open(path_dynamic_ae_network, 'rb'))
         self.fwd_dynamic = pickle.load(open(path_fwd_dynamic, 'rb'))
         self.bwd_dynamic = pickle.load(open(path_bwd_dynamic, 'rb'))
-        
         self.state_dim = state_dim
         self.action_dim = action_dim
         self.quantile = quantile
-        
         self.device = torch.device(device)
 
-    # 1. Offline RL add data function: add_data_to_buffer -> convert_buffer_to_numpy_dataset -> cat_new_dataset
-    def add_data_to_buffer(self, state, action, reward, done):
-        self.state_buffer.append(state)
-        self.action_buffer.append(action)
-        self.reward_buffer.append(reward)
-        self.done_buffer.append(done)
-
-    # 2. Offline RL add data function: add_data_to_buffer -> convert_buffer_to_numpy_dataset -> cat_new_dataset
-    def convert_buffer_to_numpy_dataset(self):
-        return np.array(self.state_buffer), \
-               np.array(self.action_buffer), \
-               np.array(self.reward_buffer), \
-               np.array(self.done_buffer)
-
-    # 3. Offline RL add data function: add_data_to_buffer -> convert_buffer_to_numpy_dataset -> cat_new_dataset
-    def cat_new_dataset(self, dataset):
-        new_state, new_action, new_reward, new_done = self.convert_buffer_to_numpy_dataset()
-
-        state = np.concatenate([dataset['observations'], new_state], axis=0)
-        action = np.concatenate([dataset['actions'], new_action], axis=0)
-        reward = np.concatenate([dataset['rewards'].reshape(-1, 1), new_reward.reshape(-1, 1)], axis=0)
-        done = np.concatenate([dataset['terminals'].reshape(-1, 1), new_done.reshape(-1, 1)], axis=0)
-
-        # free the buffer when you have converted the online sample to offline dataset
-        self.state_buffer = []
-        self.action_buffer = []
-        self.reward_buffer = []
-        self.done_buffer = []
-        return {
-            'observations': state,
-            'actions': action,
-            'rewards': reward,
-            'terminals': done,
-        }
-
-    # TD3 add data function
-    def add(self, state, action, next_state, reward, done):
-        self.state[self.ptr] = state
-        self.action[self.ptr] = action
-        self.next_state[self.ptr] = next_state
-        self.reward[self.ptr] = reward
-        self.not_done[self.ptr] = 1. - done
-
-        self.ptr = (self.ptr + 1) % self.max_size
-        self.size = min(self.size + 1, self.max_size)
-
-    # Offline and Online sample data from replay buffer function
     def sample(self, batch_size):
         ind = np.random.randint(0, self.size, size=batch_size)  ###################################
-        # print('type',type(self.current_z[ind]))
-        # print('type',type(self.state[ind]))
         return (
             torch.FloatTensor(self.state[ind]).to(self.device),
             torch.FloatTensor(self.action[ind]).to(self.device),
             torch.FloatTensor(self.next_state[ind]).to(self.device), 
-            
             self.current_z_state[ind],
             self.current_z_action[ind],
             self.next_z_state[ind], 
-            
             torch.FloatTensor(self.reward[ind]).to(self.device),
             torch.FloatTensor(self.not_done[ind]).to(self.device)
         )
 
-    def sample_lambda(self, batch_size):
-        ind = np.random.randint(0, self.size, size=batch_size) 
-
-        return (
-            torch.FloatTensor(self.state[ind]).to(self.device),
-            torch.FloatTensor(self.action[ind]).to(self.device),
-            torch.FloatTensor(self.next_state[ind]).to(self.device), 
-            torch.FloatTensor(self.next_action[ind]).to(self.device),
-            torch.FloatTensor(self.reward[ind]).to(self.device),
-            torch.FloatTensor(self.not_done[ind]).to(self.device)
-        )
 
     def split_dataset(self, env, dataset, terminate_on_end=False, ratio=10):
         """
@@ -282,14 +206,6 @@ class ReplayBuffer(object):
                consis_min, torch.mean(current_consist_loss), \
                 z_mean, z_std, \
                 z_s_mean, z_s_std, z_a_std
-
-
-    def normalize_states(self, eps=1e-3):
-        mean = self.state.mean(0, keepdims=True)
-        std = self.state.std(0, keepdims=True) + eps
-        self.state = (self.state - mean) / std
-        self.next_state = (self.next_state - mean) / std
-        return mean, std
 
     def traj_to_array(self, trajs):
         for traj_num in range(len(trajs)):
