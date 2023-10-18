@@ -2,16 +2,15 @@ import torch.nn as nn
 import torch
 import torch.nn.functional as F
 import numpy as np
-from torch.distributions import MultivariateNormal, Normal
 
 class Actor_deterministic(nn.Module):
     def __init__(self, num_state, num_action, num_hidden,dropout_rate, device):
         super(Actor_deterministic, self).__init__()
         self.device = device
         self.fc1 = nn.Linear(num_state, num_hidden)
-        self.drop = torch.nn.Dropout(p=dropout_rate)
         self.fc2 = nn.Linear(num_hidden, num_hidden)
         self.action = nn.Linear(num_hidden, num_action)
+        self.drop = torch.nn.Dropout(p=dropout_rate)
         
     def forward(self, x):
         if isinstance(x, np.ndarray):
