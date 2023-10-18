@@ -8,24 +8,19 @@ import pickle
 from tdm_nn import Full_network, AutoEncoder, ForwardNet, BackwardNet
 
 def train_network(training_data, val_data, params):
-    # SET UP NETWORK
-    
     input_dim = params['input_dim']
     state_dim = params['state_dim']# 
     act_dim = params['act_dim'] # 
     latent_out = params['latent_out']# 
     z_stat_dim = params['latent_s_dim']
     z_act_dim = latent_out - z_stat_dim
-    # assert(latent_out == act_dim + z_stat_dim)
     learning_rate = params['learning_rate']
     l1_lambda = params['l1_rate']
     total_epochs = params['max_epochs']
-    
     ae_network =  AutoEncoder(input_dim, latent_out, act_dim, state_dim, z_stat_dim, z_act_dim, params['device'], seed=params['seed']).to(params['device'])
     fwd_network = ForwardNet(z_stat_dim, z_act_dim, device=params['device'], seed=params['seed']).to(params['device'])
     bwd_network = BackwardNet(z_stat_dim, z_act_dim, device=params['device'], seed=params['seed']).to(params['device'])
     dynamic_network = Full_network(ae_network, fwd_network, bwd_network, params)
-    
     optimizer = optim.Adam([{"params":dynamic_network.ae_network.parameters()},
                             {"params":dynamic_network.fwd_network.parameters()}, 
                             {"params":dynamic_network.bwd_network.parameters()}], 
@@ -49,7 +44,6 @@ def train_network(training_data, val_data, params):
             train_total_loss.backward()
             optimizer.step()
 
-            
         wandb.log({
             'epoch': epoch,
             "training_loss": train_total_loss,
@@ -86,7 +80,6 @@ def train_network(training_data, val_data, params):
     pickle.dump(bwd_network, open(OUT_DIR + 'Dyna_bwd_params.pkl', 'wb'))
     
 def create_feed_dictionary(data, params, idxs=None):
-
     if idxs is None:
         idxs = np.arange(data['s'].shape[0])
     feed_dict =  {}
@@ -121,6 +114,7 @@ def define_loss(data_dic, results_dic, params, epoch, validation=False):
                 losses['dyna_consist'] = torch.mean(torch.sum((results_dic['dyna_consist'])**2, -1))
                 losses['model_consist'] = torch.mean(torch.sum((results_dic['consist'])**2, -1))
                 loss =  losses['total_decode_loss'] + losses['dnyamic_dz_s'] +  losses['dnyamic_dz_s_decoded']
+                
                 return loss, losses     
         else:
             with torch.set_grad_enabled(True):

@@ -97,7 +97,7 @@ def create_samples(env_name, ratio):
     np.save(path,outs)
             
 def main():
-    parser = argparse.ArgumentParser(description='Train TDM')
+    parser = argparse.ArgumentParser()
     parser.add_argument('--env_name', default='hopper-medium-v2', help='choose your mujoco env')
     parser.add_argument('--ratio', default=100, type=float, help='data ratio')
     args = parser.parse_args()
