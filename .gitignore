@@ -1,5 +1,4 @@
 *.pkl
-utils/small_samples/
 TDM/tdm_models/
 TDM/logs/
 TDM/__pycache__/
